@@ -12,17 +12,24 @@ var ContaoSortableTree = new Class({
             data: {
                 'src': 'system/modules/m17SortableTreeListing/html/img/icon/arrow-move.png',
                 'alt': 'move',
-                'class': 'movethis'
+                'class': 'movethis',
+                'styles': {
+                    'cursor': 'move'
+                }
             },
             injectDestination: ['.tl_left a', 'before']
         }
     },
     initialize: function(options) {
+        var self = this;
         this.setOptions(options);
         this.tlFilesItems = $$(this.options.tlFilesItems);
         this.addDragImage();
         this.setIdsAsData();
-        this.initDragAndDrop();
+        this.tlFilesItems.addEvent('mousedown', function(event) {
+            self.initDragAndDrop.apply(this, [event, self.options, self]);
+        });
+
     },
     addDragImage: function() {
         var dragIcon = this.options.dragIcon,
@@ -59,57 +66,51 @@ var ContaoSortableTree = new Class({
         }
 
         return _r();
-    }.protect(),
-    initDragAndDrop: function(event) {
+    },
+    initDragAndDrop: function(event, options, cthis) {
         event.stop();
-        $this = this;
-        //TODO Refactoring Class with options
+        var $this = this;
+
         /* Check if the target has the class movethis */
-        if(event.target.hasClass('movethis')) {
-            /* generate a copy of the drag item */
+        if(event.target.hasClass(options.dragIcon.data.class)) {
             var dragId = $this.get('data-id');
 
+            /* generate a copy of the drag item */
             var shadow = $this.getElement('.tl_left').clone().setStyles(this.getCoordinates()).setStyles({
                 opacity: 0.7,
                 position: 'absolute'
             }).inject(document.body);
 
-            // hide m17 Tools
-            //shadow.getElement('.rtz').setStyle('display', 'none');
             var drag = new Drag.Move(shadow, {
 
                 /* define drop areas */
-                droppables: $$('.tl_listing .tl_file', '.tl_listing .tl_folder'),
-
+                droppables: $$(options.droppables),
 
                 onDrop: function(dragging, destination){
-                    //var dragId = dragging.getParent().get('data-id');
-                    //console.log(dragId);
-                    var dropId = destination.get('data-id');
+                    var dropId = destination.get('data-id'),
+                        _padding,
+                        _xhr;
+
                     dragging.destroy(); // destroy shadow
                     destination.setStyle('outline', 'none');
                     $this.inject(destination,'after');
-                    var _padding;
-                    /* Save elements */
-                    //var doRequest = function(mode,pid,id) {
-                    if(destination.hasClass('tl_file')) {
-                        var _xhr = new Request({
-                            'url': 'http://cto.local/contao/main.php?do=article&act=cut&mode=1&pid='+dropId+'&id='+dragId
-                        });
-                        _xhr.send();
-                    } else {
-                        var _xhr = new Request({
-                            'url': 'http://cto.local/contao/main.php?do=article&act=cut&mode=2&pid='+dropId+'&id='+dragId
-                        });
-                        _xhr.send();
-                    }
-                    //};
 
-                    if(destination.hasClass('tl_folder')) {
-                        _padding = destination.getElement('.tl_left').getStyle('paddingLeft').toInt() + 40;
-                    } else {
-                        _padding = destination.getElement('.tl_left').getStyle('paddingLeft').toInt();
+                    _xhr = function(mode) {
+                        var _req = new Request({
+                            'url': 'contao/main.php?do=article&act=cut&mode='+mode+'&pid='+dropId+'&id='+dragId
+                        });
+                        _req.send();
                     }
+
+                    _padding = destination.getElement('.tl_left').getStyle('paddingLeft').toInt();
+
+                    cthis.fileOrFolder(destination, function() {
+                        _xhr(1);
+                    }, function() {
+                        _xhr(2);
+                        _padding += 40;
+                    });
+
 
                     $this.getElement('.tl_left').setStyles({
                         'paddingLeft': _padding
